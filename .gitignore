@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+data/
+logs/
+artifacts/
+
+# Obtidos diretamente dos autores durante a preparação
+vendor/
+models/
+docs/referencias.html
+.env
+.env.*
