@@ -17,8 +17,10 @@ Instale [uv](https://docs.astral.sh/uv/getting-started/installation/) e execute:
 
 ```bash
 ./preparar.sh
-./jogar.sh --device cpu
+./iniciar.sh
 ```
+
+Depois da preparação, `iniciar.sh` abre o menu com as configurações padrão. Use `jogar.sh` quando quiser passar flags diretamente.
 
 O script cria `.venv` com Python 3.12, instala `requirements.lock`, baixa os arquivos dos projetos originais e gera o guia offline. Não modifica o Python do sistema. Em Linux, `v4l2-ctl` (pacote `v4l-utils`) é opcional para ajustar temporariamente o FPS da webcam. O programa tenta V4L2 e backend genérico, além de YUYV e MJPG; isso ajuda com DroidCam. Se houver mais de uma câmera, use `--camera 1` (ou outro índice). Bibliotecas gráficas OpenGL/EGL e uma sessão gráfica são necessárias para a janela.
 
@@ -33,6 +35,8 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe tools/build_guide.py
 .\.venv\Scripts\python.exe main.py --device cpu
 ```
+
+Depois da instalação, também é possível dar duplo clique em `iniciar.bat`.
 
 Não é necessário ativar o ambiente. Nos exemplos seguintes, substitua `./jogar.sh` por `.\.venv\Scripts\python.exe main.py` no Windows. Se não existir um pacote compatível com seu sistema/arquitetura, a instalação falhará; não há garantia de suporte para todas as plataformas.
 
