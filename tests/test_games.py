@@ -83,6 +83,13 @@ class GameTests(unittest.TestCase):
         self.assertEqual(state.update("Gato joia", 1.2), "Gato joia")
         self.assertEqual(state.update("Outro", 1.21), "Gato joia")
 
+    def test_meme_short_detection_gap_keeps_last_result(self):
+        state = MemeState()
+        state.update("Gato joia", 1)
+        self.assertEqual(state.update("Gato joia", 1.2), "Gato joia")
+        self.assertEqual(state.update(None, 1.4), "Gato joia")
+        self.assertIsNone(state.update(None, 1.9))
+
     def test_segment_distance_handles_stationary_cursor(self):
         self.assertEqual(segment_distance((3, 4), (0, 0), (0, 0)), 5)
 

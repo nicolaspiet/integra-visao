@@ -125,6 +125,15 @@ class FrontendTests(unittest.TestCase):
         app = self.app("pong")
         self.assertFalse(app.debug_overlay)
 
+    def test_camera_preview_controls_are_independent(self):
+        app = self.app("memes")
+        self.assertTrue(app.camera_mirror)
+        self.assertFalse(app.camera_fill)
+        app.action(("camera_mirror",))
+        app.action(("camera_fill",))
+        self.assertFalse(app.camera_mirror)
+        self.assertTrue(app.camera_fill)
+
     def test_anatomy_mode_has_configurable_layers(self):
         app = self.app("anatomy")
         self.assertTrue(app.anatomy["hands"])

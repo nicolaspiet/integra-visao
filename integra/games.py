@@ -174,15 +174,27 @@ class Expressions:
 
 
 class MemeState:
+    """Estabiliza rótulos do detector para evitar piscar com landmarks ruidosos."""
     def __init__(self):
         self.current = self.candidate = None
         self.since = self.idle = 0.0
+        self.missing_since = None
 
     def update(self, gesture, now):
+        if gesture is None:
+            if self.missing_since is None:
+                self.missing_since = now
+            # Pequenas perdas de uma mão/rosto não apagam o resultado.
+            if now - self.missing_since < .45:
+                return self.current
+            self.current = self.candidate = None
+            self.since = now
+            return None
+        self.missing_since = None
         if gesture != self.candidate:
             self.candidate, self.since = gesture, now
+        # Exige presença contínua; troca instantânea de rótulos não pisca na tela.
         if now - self.since >= .15:
-            self.current = gesture
-        if gesture:
-            self.idle = now
+            self.current = self.candidate
+        self.idle = now
         return self.current

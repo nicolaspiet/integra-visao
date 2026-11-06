@@ -20,7 +20,7 @@ Instale [uv](https://docs.astral.sh/uv/getting-started/installation/) e execute:
 ./jogar.sh --device cpu
 ```
 
-O script cria `.venv` com Python 3.12, instala `requirements.lock`, baixa os arquivos dos projetos originais e gera o guia offline. Não modifica o Python do sistema. Em Linux, `v4l2-ctl` (pacote `v4l-utils`) é opcional para ajustar temporariamente o FPS da webcam. Bibliotecas gráficas OpenGL/EGL e uma sessão gráfica são necessárias para a janela.
+O script cria `.venv` com Python 3.12, instala `requirements.lock`, baixa os arquivos dos projetos originais e gera o guia offline. Não modifica o Python do sistema. Em Linux, `v4l2-ctl` (pacote `v4l-utils`) é opcional para ajustar temporariamente o FPS da webcam. O programa tenta V4L2 e backend genérico, além de YUYV e MJPG; isso ajuda com DroidCam. Se houver mais de uma câmera, use `--camera 1` (ou outro índice). Bibliotecas gráficas OpenGL/EGL e uma sessão gráfica são necessárias para a janela.
 
 ### Windows (PowerShell)
 
@@ -56,6 +56,10 @@ A interface usa fundo claro, linhas simples e controles discretos. Nos modos de 
 **Como jogar** ou `H` abre o catálogo na própria janela e suspende a atualização da partida. São **15 figurinhas**, com as imagens originais e instruções de cada gesto, e **7 expressões**, com esquemas ilustrativos e dicas. Clique em um item para abrir os detalhes; setas e rolagem navegam entre páginas ou itens. **Voltar** ou `H` retorna ao jogo. `N` ou **Pular esta** troca a expressão pedida no desafio.
 
 No modo **Anatomia**, as teclas `1` a `6` ligam ou desligam, respectivamente: mãos e ossos, rosto, malha facial, contornos, índices e blendshapes. Os mesmos controles aparecem no painel lateral. Índices começam desligados para manter a imagem limpa; ative-os quando quiser inspecionar cada landmark.
+
+A câmera começa espelhada, como no celular. O botão **Desespelhar** (tecla `M`) troca essa visualização. **Preencher câmera** (tecla `V`) estica o quadro para ocupar todo o painel; **Tamanho real** volta a preservar a proporção. Esses controles mudam somente a prévia, não a resolução nem o detector.
+
+No modo Figurinhas, o reconhecimento agora tolera mais variação de ângulo, distância e pequenas perdas de um quadro. O resultado permanece por uma fração de segundo antes de desaparecer, reduzindo a piscada causada pelo DroidCam ou por mãos parcialmente oclusas.
 
 Para mostrar os mesmos pontos e conexões por cima dos minigames, ative o modo opcional `--debug-overlay` (ou o alias `--show-skeleton`). Ele deixa a partida normal quando omitido:
 

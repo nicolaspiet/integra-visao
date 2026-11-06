@@ -34,6 +34,8 @@ class Frontend(App):
         self.diagnostics = False
         self.debug_overlay = bool(getattr(args, "debug_overlay", False))
         self.camera_large = False
+        self.camera_mirror = True
+        self.camera_fill = False
         self.catalog_tab = "memes"
         self.catalog_page = 0
         self.catalog_focus = None
@@ -57,6 +59,8 @@ class Frontend(App):
         self.best = save_record(mode, 0, demo=True)
         self.memes = MemeState()
         self.camera_large = False
+        self.camera_mirror = True
+        self.camera_fill = False
         self.reset()
         self.start_devices()
 
@@ -157,11 +161,13 @@ class Frontend(App):
         pg.draw.rect(self.screen, DARK, rect, border_radius=3)
         if observation.frame is not None:
             height, width = observation.frame.shape[:2]
-            fitted = pg.Rect(0, 0, width, height).fit(rect)
+            fitted = pg.Rect(rect) if self.camera_fill else pg.Rect(0, 0, width, height).fit(rect)
             fitted.center = rect.center
-            key = (observation.sequence, fitted.size, self.diagnostics, self.debug_overlay, tuple(self.anatomy.items()))
+            key = (observation.sequence, fitted.size, self.diagnostics, self.debug_overlay,
+                   self.camera_mirror, self.camera_fill, tuple(self.anatomy.items()))
             if self._preview_key != key:
-                frame = cv2.resize(observation.frame, fitted.size, interpolation=cv2.INTER_LINEAR)
+                source = cv2.flip(observation.frame, 1) if not self.camera_mirror else observation.frame
+                frame = cv2.resize(source, fitted.size, interpolation=cv2.INTER_LINEAR)
                 fw, fh = fitted.size
                 overlay = self.mode == "anatomy" or self.debug_overlay
                 if overlay:
@@ -240,12 +246,23 @@ class Frontend(App):
 
     def draw_memes(self, now):
         p, gesture = self.painter, self.memes.current
-        path = meme_paths().get(gesture) if gesture else LAB / "imagens" / ("gato-frente.png" if now - self.memes.idle > 10 else "macaco-olhar-perdido.png")
         entry = gesture_entry(gesture)
-        if path and path.exists():
-            p.image(self.image(path), (824, 174, 416, 295))
-        p.text(entry["name"] if entry else "Faça um gesto", 824, 488, 25, bold=True)
-        p.wrap(entry["how"] if entry else "Experimente um joia ou hang loose para começar.", (824, 531, 416, 61), 17, MUTED)
+        if gesture:
+            path = meme_paths().get(gesture)
+            if path and path.exists():
+                p.image(self.image(path), (824, 174, 416, 295))
+            p.text(entry["name"] if entry else gesture, 824, 488, 25, bold=True)
+            p.wrap(entry["how"] if entry else "Gesto reconhecido.", (824, 531, 416, 61), 17, MUTED)
+        else:
+            # Não mostrar uma figurinha aleatória: deixa claro o estado do detector.
+            p.panel((824, 174, 416, 295), WASH)
+            if self.memes.candidate:
+                p.text("Identificando…", 1032, 278, 28, ACCENT, True, True)
+                p.wrap("Mantenha o gesto por um instante.", (870, 320, 324, 52), 17, MUTED, True)
+            else:
+                p.text("Nenhum gesto identificado", 1032, 270, 25, INK, True, True)
+                p.wrap("Mostre uma mão ou faça uma expressão diante da câmera.", (870, 315, 324, 75), 17, MUTED, True)
+            p.text("O detector está procurando…", 1032, 416, 15, MUTED, True, True)
         self.button("Ver as 15 figurinhas", (824, 598, 416, 40), ("catalog", "memes"))
 
     def status(self, observation, now):
@@ -308,6 +325,9 @@ class Frontend(App):
                 p.panel(area, WASH)
                 p.text(status[0], area.x + 14, area.y + 13, 21, ACCENT, bold=True)
                 p.wrap(status[1], (area.x + 14, area.y + 48, area.width - 28, 50), 15, MUTED)
+        # Controles de prévia: não alteram resolução nem inferência.
+        self.button("Desespelhar" if self.camera_mirror else "Espelhar", (824, 612, 132, 32), ("camera_mirror",), quiet=True)
+        self.button("Tamanho real" if self.camera_fill else "Preencher câmera", (966, 612, 150, 32), ("camera_fill",), quiet=True)
         p.rule(655)
         if self.mode in ("pong", "fruit", "expressions"):
             label = "Jogar de novo" if self.phase == "finished" else "Começar" if self.phase == "ready" else "Continuar" if self.paused else "Pausar"
@@ -458,6 +478,12 @@ class Frontend(App):
         elif name == "camera_size":
             self.camera_large = not self.camera_large
             self._preview_key = None
+        elif name == "camera_mirror":
+            self.camera_mirror = not self.camera_mirror
+            self._preview_key = None
+        elif name == "camera_fill":
+            self.camera_fill = not self.camera_fill
+            self._preview_key = None
         elif name == "anatomy_toggle" and self.mode == "anatomy":
             self.anatomy[values[0]] = not self.anatomy[values[0]]
             self._preview_key = None
@@ -516,6 +542,10 @@ class Frontend(App):
                 return self.action(("skip",))
             if key == pg.K_c:
                 return self.action(("camera_size",))
+            if key == pg.K_m:
+                return self.action(("camera_mirror",))
+            if key == pg.K_v:
+                return self.action(("camera_fill",))
             if key == pg.K_d:
                 self.diagnostics = not self.diagnostics
             if key in (pg.K_1, pg.K_2, pg.K_3, pg.K_4, pg.K_5, pg.K_6) and self.mode == "anatomy":

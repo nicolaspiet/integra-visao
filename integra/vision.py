@@ -73,26 +73,41 @@ class Camera:
     def _run(self):
         cap = None
         try:
-            cap = cv2.VideoCapture(self.index, cv2.CAP_V4L2 if sys.platform.startswith("linux") else cv2.CAP_ANY)
+            # DroidCam pode abrir em V4L2, mas não aceitar o formato YUYV. Tente
+            # backend genérico e MJPG antes de desistir; isso também remove avisos
+            # estranhos do driver quando a câmera anuncia capacidades incompletas.
+            backends = [cv2.CAP_V4L2, cv2.CAP_ANY] if sys.platform.startswith("linux") else [cv2.CAP_ANY]
+            codecs = ["MJPG", "YUYV"] if self.width >= 1280 else ["YUYV", "MJPG"]
+            for backend in backends:
+                for codec in codecs:
+                    candidate = cv2.VideoCapture(self.index, backend)
+                    if not candidate.isOpened():
+                        candidate.release()
+                        continue
+                    candidate.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*codec))
+                    candidate.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                    candidate.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                    candidate.set(cv2.CAP_PROP_FPS, 30)
+                    candidate.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    ok, probe = candidate.read()
+                    if ok and probe is not None and probe.size:
+                        cap = candidate
+                        break
+                    candidate.release()
+                if cap is not None:
+                    break
             self._cap = cap
-            if not cap.isOpened():
-                raise RuntimeError("Webcam indisponível. Feche navegador/Teams e confira permissões.")
+            if cap is None:
+                raise RuntimeError("Webcam não entregou quadros. No DroidCam, confira se o cliente está conectado e tente --camera 1.")
             self._fps_control()
-            # Em 720p esta webcam entrega 30 FPS somente em MJPEG (YUYV: 10 FPS).
-            codec = "MJPG" if self.width >= 1280 else "YUYV"
-            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*codec))
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-            cap.set(cv2.CAP_PROP_FPS, 30)
-            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             fourcc = int(cap.get(cv2.CAP_PROP_FOURCC))
             actual_codec = "".join(chr((fourcc >> (8 * i)) & 255) for i in range(4))
             self.description = f"{int(cap.get(3))}×{int(cap.get(4))} · {actual_codec}"
             count, started, sequence = 0, time.monotonic(), 0
             while not self.stopped.is_set():
                 ok, frame = cap.read()
-                if not ok:
-                    raise RuntimeError("A webcam parou de enviar imagens.")
+                if not ok or frame is None or frame.size == 0:
+                    raise RuntimeError("A webcam parou de enviar imagens. Tente o outro dispositivo com --camera 1.")
                 captured = time.monotonic()
                 frame = cv2.flip(frame, 1)
                 with self.condition:
@@ -171,12 +186,14 @@ class Vision:
             options = vision.HandLandmarkerOptions(
                 base_options=python.BaseOptions(model_asset_path=str(LAB / "models/hand_landmarker.task"), delegate=delegate),
                 running_mode=vision.RunningMode.VIDEO, num_hands=2 if self.mode == "memes" else 1,
-                min_hand_detection_confidence=.5, min_hand_presence_confidence=.5, min_tracking_confidence=.5)
+                min_hand_detection_confidence=.4, min_hand_presence_confidence=.4, min_tracking_confidence=.4)
             hand = stack.enter_context(vision.HandLandmarker.create_from_options(options))
         if self.mode in ("expressions", "memes", "anatomy"):
             options = vision.FaceLandmarkerOptions(
                 base_options=python.BaseOptions(model_asset_path=str(LAB / "models/face_landmarker.task"), delegate=delegate),
                 running_mode=vision.RunningMode.VIDEO, num_faces=1,
+                min_face_detection_confidence=.4, min_face_presence_confidence=.4,
+                min_tracking_confidence=.4,
                 output_face_blendshapes=self.mode in ("memes", "anatomy"))
             face = stack.enter_context(vision.FaceLandmarker.create_from_options(options))
         return hand, face
@@ -203,6 +220,13 @@ class Vision:
                 classifier = ExpressionModel() if self.mode == "expressions" else None
                 if self.mode == "memes":
                     sys.path.insert(0, str(LAB))
+                    # Tolerância maior a pequenas variações de ângulo/distância.
+                    # Valores originais seguem intactos no checkout da referência.
+                    import config as lab_config
+                    lab_config.ANGULO_DEDO_ESTENDIDO = 150
+                    lab_config.FATOR_POLEGAR_ESTENDIDO = 1.10
+                    lab_config.DISTANCIA_MAO_ROSTO = .45
+                    lab_config.DISTANCIA_MAO_CABECA = 1.20
                     from reconhecimento import reconhecer_gesto
                     from rosto import extrair_info_rosto
                 self.ready.set()
